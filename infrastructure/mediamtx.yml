@@ -1,0 +1,14 @@
+api: yes
+apiAddress: :9997
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsSegmentCount: 3
+hlsSegmentDuration: 2s
+
+rtsp: yes
+rtspAddress: :8554
+
+paths:
+  all_others:
