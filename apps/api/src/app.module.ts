@@ -11,6 +11,7 @@ import { ClientsModule } from './clients/clients.module';
 import { EventsModule } from './events/events.module';
 import { StreamingModule } from './streaming/streaming.module';
 import { AuditMiddleware } from './common/middleware/audit.middleware';
+import { RecordingModule } from './recording/recording.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuditMiddleware } from './common/middleware/audit.middleware';
     ClientsModule,
     EventsModule,
     StreamingModule,
+    RecordingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
