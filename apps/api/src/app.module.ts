@@ -8,9 +8,9 @@ import { UsersModule } from './users/users.module';
 import { CamerasModule } from './cameras/cameras.module';
 import { AlertsModule } from './alerts/alerts.module';
 import { ClientsModule } from './clients/clients.module';
-import { AuditMiddleware } from './common/middleware/audit.middleware';
 import { EventsModule } from './events/events.module';
-import { EventsGateway } from './events/events.gateway';
+import { StreamingModule } from './streaming/streaming.module';
+import { AuditMiddleware } from './common/middleware/audit.middleware';
 
 @Module({
   imports: [
@@ -21,9 +21,11 @@ import { EventsGateway } from './events/events.gateway';
     CamerasModule,
     AlertsModule,
     ClientsModule,
+    EventsModule,
+    StreamingModule,
   ],
   controllers: [AppController],
-  providers: [AppService, EventsGateway],
+  providers: [AppService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
