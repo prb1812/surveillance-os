@@ -1,14 +1,20 @@
 api: yes
 apiAddress: :9997
 
-hls: yes
 hlsAddress: :8888
+hls: yes
 hlsAlwaysRemux: yes
 hlsSegmentCount: 3
 hlsSegmentDuration: 2s
+hlsPartDuration: 200ms
+hlsAllowOrigin: '*'
 
 rtsp: yes
 rtspAddress: :8554
+rtspTransports: [tcp]
 
 paths:
+  camera1:
+    source: publisher
   all_others:
+    source: publisher
