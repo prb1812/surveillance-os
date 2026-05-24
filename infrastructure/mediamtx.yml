@@ -1,20 +1,19 @@
+logLevel: info
+logDestinations: [stdout]
+
 api: yes
 apiAddress: :9997
 
-hlsAddress: :8888
-hls: yes
-hlsAlwaysRemux: yes
-hlsSegmentCount: 3
-hlsSegmentDuration: 2s
-hlsPartDuration: 200ms
-hlsAllowOrigin: '*'
-
 rtsp: yes
 rtspAddress: :8554
-rtspTransports: [tcp]
+
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsSegmentCount: 7
+hlsSegmentDuration: 2s
+hlsPartDuration: 200ms
+hlsAllowOrigins: ['*']
 
 paths:
-  camera1:
-    source: publisher
   all_others:
-    source: publisher
