@@ -1,19 +1,17 @@
 logLevel: info
 logDestinations: [stdout]
-
 api: yes
 apiAddress: :9997
-
 rtsp: yes
 rtspAddress: :8554
-
 hls: yes
 hlsAddress: :8888
 hlsAlwaysRemux: yes
 hlsSegmentCount: 7
 hlsSegmentDuration: 2s
-hlsPartDuration: 200ms
 hlsAllowOrigins: ['*']
-
+hlsEncryption: no
+hlsTrustedProxies: []
 paths:
-  all_others:
+  "~.*":
+    source: publisher
