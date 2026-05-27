@@ -6,21 +6,46 @@ import { adminNavItems } from '@/lib/nav-items';
 
 interface Operator {
   id: string; name: string; email: string; phone: string;
-  shiftStart: string; shiftEnd: string; status: string;
+  shiftStart: string; shiftEnd: string; isActive: boolean;
 }
 
-const empty = { name: '', email: '', phone: '', password: '', shiftStart: '09:00', shiftEnd: '18:00', emergencyContact: '', address: '' };
+interface Camera {
+  id: string; name: string; location: string;
+}
+
+interface Assignment {
+  cameraId: string;
+}
+
+const empty = {
+  name: '', email: '', phone: '', password: '',
+  shiftStart: '09:00', shiftEnd: '18:00',
+  emergencyContact: '', address: '',
+};
 
 export default function OperatorsPage() {
   const [operators, setOperators] = useState<Operator[]>([]);
+  const [cameras, setCameras] = useState<Camera[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
   const [editing, setEditing] = useState<Operator | null>(null);
+  const [assigningOp, setAssigningOp] = useState<Operator | null>(null);
   const [form, setForm] = useState(empty);
+  const [selectedCameras, setSelectedCameras] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const load = async () => { setLoading(true); const d = await api.get<Operator[]>('/users?role=OPERATOR'); setOperators(d); setLoading(false); };
+  const load = async () => {
+    setLoading(true);
+    const [ops, cams] = await Promise.all([
+      api.get<Operator[]>('/users?role=OPERATOR'),
+      api.get<Camera[]>('/cameras'),
+    ]);
+    setOperators(ops);
+    setCameras(cams);
+    setLoading(false);
+  };
   useEffect(() => { load(); }, []);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true); };
@@ -30,25 +55,65 @@ export default function OperatorsPage() {
     setError(''); setShowModal(true);
   };
 
+  const openAssign = async (op: Operator) => {
+    setAssigningOp(op);
+    try {
+      const assignments = await api.get<Assignment[]>(`/camera-assignments?operatorId=${op.id}`);
+      setSelectedCameras(assignments.map((a: Assignment) => a.cameraId));
+    } catch {
+      setSelectedCameras([]);
+    }
+    setShowAssignModal(true);
+  };
+
   const save = async () => {
     if (!form.name || !form.email) { setError('Name and email are required'); return; }
     if (!editing && !form.password) { setError('Password is required for new operator'); return; }
     setSaving(true);
     try {
-      const payload: any = { name: form.name, email: form.email, phone: form.phone, shiftStart: form.shiftStart, shiftEnd: form.shiftEnd, emergencyContact: form.emergencyContact, address: form.address, role: 'OPERATOR' };
-      if (!editing) payload.password = form.password;
+      const payload: any = {
+        name: form.name, email: form.email, phone: form.phone,
+        shiftStart: form.shiftStart, shiftEnd: form.shiftEnd,
+        emergencyContact: form.emergencyContact, address: form.address,
+        role: 'OPERATOR',
+      };
+      if (form.password) payload.password = form.password;
       editing ? await api.patch(`/users/${editing.id}`, payload) : await api.post('/users', payload);
       setShowModal(false); load();
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
 
-  const suspend = async (op: Operator) => {
-    await api.patch(`/users/${op.id}`, { status: op.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' });
+  const saveAssignments = async () => {
+    if (!assigningOp) return;
+    setSaving(true);
+    try {
+      await api.post('/camera-assignments', {
+        operatorId: assigningOp.id,
+        cameraIds: selectedCameras,
+      });
+      setShowAssignModal(false);
+    } catch (e: any) {
+      alert(e.message || 'Failed to save assignments');
+    }
+    finally { setSaving(false); }
+  };
+
+  const toggleCamera = (id: string) => {
+    setSelectedCameras(prev =>
+      prev.includes(id) ? prev.filter(c => c !== id) : [...prev, id]
+    );
+  };
+
+  const toggleActive = async (op: Operator) => {
+    await api.patch(`/users/${op.id}`, { isActive: !op.isActive });
     load();
   };
 
-  const remove = async (id: string) => { if (!confirm('Delete this operator?')) return; await api.delete(`/users/${id}`); load(); };
+  const remove = async (id: string) => {
+    if (!confirm('Delete this operator?')) return;
+    await api.delete(`/users/${id}`); load();
+  };
 
   return (
     <DashboardLayout navItems={adminNavItems} role="SUPER_ADMIN">
@@ -84,14 +149,15 @@ export default function OperatorsPage() {
                     {op.shiftStart && op.shiftEnd ? `${op.shiftStart} – ${op.shiftEnd}` : '—'}
                   </td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${op.status === 'ACTIVE' || !op.status ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {op.status || 'ACTIVE'}
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${op.isActive !== false ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {op.isActive !== false ? 'ACTIVE' : 'SUSPENDED'}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={() => openEdit(op)} className="text-cyan-400 text-xs hover:underline">Edit</button>
-                      <button onClick={() => suspend(op)} className="text-yellow-400 text-xs hover:underline">{op.status === 'SUSPENDED' ? 'Activate' : 'Suspend'}</button>
+                      <button onClick={() => openAssign(op)} className="text-green-400 text-xs hover:underline">Assign Cameras</button>
+                      <button onClick={() => toggleActive(op)} className="text-yellow-400 text-xs hover:underline">{op.isActive !== false ? 'Suspend' : 'Activate'}</button>
                       <button onClick={() => remove(op.id)} className="text-red-400 text-xs hover:underline">Delete</button>
                     </div>
                   </td>
@@ -102,13 +168,13 @@ export default function OperatorsPage() {
         </div>
       )}
 
+      {/* Add / Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h2 className="text-xl font-bold mb-6">{editing ? 'Edit Operator' : 'Add New Operator'}</h2>
               {error && <p className="text-red-400 text-sm mb-4 bg-red-500/10 border border-red-500/20 rounded p-3">{error}</p>}
-
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -116,11 +182,11 @@ export default function OperatorsPage() {
                     <input className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="John Doe" />
                   </div>
                   <div>
-                    <label className="block text-gray-400 text-sm mb-1">Email Address *</label>
+                    <label className="block text-gray-400 text-sm mb-1">Email / Username *</label>
                     <input type="email" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="operator@company.com" />
+                    <p className="text-gray-600 text-xs mt-1">Used to log in</p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Phone Number</label>
@@ -131,12 +197,10 @@ export default function OperatorsPage() {
                     <input className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.emergencyContact} onChange={e => setForm({ ...form, emergencyContact: e.target.value })} placeholder="+91 98765 43210" />
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Home Address</label>
                   <textarea className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none resize-none" rows={2} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="123 Main Street, City" />
                 </div>
-
                 <div>
                   <label className="block text-gray-400 text-sm mb-2">Shift Timings</label>
                   <div className="grid grid-cols-2 gap-4">
@@ -150,19 +214,54 @@ export default function OperatorsPage() {
                     </div>
                   </div>
                 </div>
-
-                {!editing && (
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1">Login Password *</label>
-                    <input type="password" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Login Password * <span className="text-gray-600 text-xs">(set by admin)</span></label>
+                  <input type="password" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder={editing ? 'Leave blank to keep current password' : 'Min 8 characters'} />
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-3 text-xs text-gray-500">
+                  <p className="font-semibold text-gray-400 mb-1">Login Credentials (share with operator):</p>
+                  <p>• Username: <span className="text-gray-300">{form.email || '—'}</span></p>
+                  <p>• Password: <span className="text-gray-300">{form.password ? '••••••••' : '—'}</span></p>
+                </div>
               </div>
-
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-700 rounded text-sm text-gray-400 hover:text-white">Cancel</button>
                 <button onClick={save} disabled={saving} className="px-6 py-2 bg-cyan-400 text-gray-950 rounded text-sm font-semibold hover:bg-cyan-300 disabled:opacity-50">
                   {saving ? 'Saving...' : editing ? 'Save Changes' : 'Create Operator'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign Cameras Modal */}
+      {showAssignModal && assigningOp && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-900 border border-gray-800 rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-xl font-bold mb-1">Assign Cameras</h2>
+              <p className="text-gray-400 text-sm mb-6">Operator: <span className="text-white font-medium">{assigningOp.name}</span></p>
+              {cameras.length === 0 ? (
+                <p className="text-gray-500 text-sm">No cameras available. Add cameras first.</p>
+              ) : (
+                <div className="space-y-2">
+                  {cameras.map(cam => (
+                    <label key={cam.id} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selectedCameras.includes(cam.id) ? 'border-cyan-400 bg-cyan-400/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                      <input type="checkbox" checked={selectedCameras.includes(cam.id)} onChange={() => toggleCamera(cam.id)} className="accent-cyan-400 w-4 h-4" />
+                      <div>
+                        <p className="text-white text-sm font-medium">{cam.name}</p>
+                        <p className="text-gray-500 text-xs">{cam.location || 'No location'}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <p className="text-gray-600 text-xs mt-4">{selectedCameras.length} camera(s) selected</p>
+              <div className="flex justify-end gap-3 mt-6">
+                <button onClick={() => setShowAssignModal(false)} className="px-4 py-2 border border-gray-700 rounded text-sm text-gray-400 hover:text-white">Cancel</button>
+                <button onClick={saveAssignments} disabled={saving} className="px-6 py-2 bg-cyan-400 text-gray-950 rounded text-sm font-semibold hover:bg-cyan-300 disabled:opacity-50">
+                  {saving ? 'Saving...' : 'Save Assignments'}
                 </button>
               </div>
             </div>

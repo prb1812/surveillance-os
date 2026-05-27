@@ -1,12 +1,6 @@
 import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  UseGuards,
+  Controller, Get, Post, Patch, Delete,
+  Body, Param, Query, UseGuards,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,37 +14,28 @@ import { Role } from '@prisma/client';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
-  // GET /users — Super Admin only
   @Get()
   @Roles(Role.SUPER_ADMIN)
-  findAll(@CurrentUser() currentUser: any) {
-    return this.usersService.findAll(currentUser);
+  findAll(@CurrentUser() currentUser: any, @Query('role') role?: string) {
+    return this.usersService.findAll(currentUser, role);
   }
 
-  // GET /users/:id — Admin or own profile
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() currentUser: any) {
     return this.usersService.findOne(id, currentUser);
   }
 
-  // POST /users — Super Admin only
   @Post()
   @Roles(Role.SUPER_ADMIN)
   create(@Body() createUserDto: any) {
     return this.usersService.create(createUserDto);
   }
 
-  // PATCH /users/:id — Admin or own profile
   @Patch(':id')
-  update(
-    @Param('id') id: string,
-    @Body() updateUserDto: any,
-    @CurrentUser() currentUser: any,
-  ) {
+  update(@Param('id') id: string, @Body() updateUserDto: any, @CurrentUser() currentUser: any) {
     return this.usersService.update(id, updateUserDto, currentUser);
   }
 
-  // DELETE /users/:id — Super Admin only
   @Delete(':id')
   @Roles(Role.SUPER_ADMIN)
   remove(@Param('id') id: string) {

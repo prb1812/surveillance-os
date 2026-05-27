@@ -6,11 +6,11 @@ import { adminNavItems } from '@/lib/nav-items';
 
 interface Client {
   id: string; name: string; email: string; phone: string;
-  address: string; plan: string; status: string;
+  address: string; plan: string; isActive: boolean;
   _count?: { cameras: number };
 }
 
-const PLANS = ['BASIC', 'STANDARD', 'ENTERPRISE'];
+const PLANS = ['BASIC', 'STANDARD', 'PREMIUM'];
 const empty = { name: '', email: '', phone: '', address: '', plan: 'BASIC', password: '' };
 
 export default function CustomersPage() {
@@ -26,7 +26,11 @@ export default function CustomersPage() {
   useEffect(() => { load(); }, []);
 
   const openAdd = () => { setEditing(null); setForm(empty); setError(''); setShowModal(true); };
-  const openEdit = (c: Client) => { setEditing(c); setForm({ name: c.name, email: c.email, phone: c.phone || '', address: c.address || '', plan: c.plan, password: '' }); setError(''); setShowModal(true); };
+  const openEdit = (c: Client) => {
+    setEditing(c);
+    setForm({ name: c.name, email: c.email, phone: c.phone || '', address: c.address || '', plan: c.plan, password: '' });
+    setError(''); setShowModal(true);
+  };
 
   const save = async () => {
     if (!form.name || !form.email) { setError('Name and email are required'); return; }
@@ -34,21 +38,27 @@ export default function CustomersPage() {
     setSaving(true);
     try {
       const payload: any = { name: form.name, email: form.email, phone: form.phone, address: form.address, plan: form.plan };
-      if (!editing) payload.password = form.password;
+      if (form.password) payload.password = form.password;
       editing ? await api.patch(`/clients/${editing.id}`, payload) : await api.post('/clients', payload);
       setShowModal(false); load();
     } catch (e: any) { setError(e.message); }
     finally { setSaving(false); }
   };
 
-  const suspend = async (c: Client) => {
-    await api.patch(`/clients/${c.id}`, { status: c.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' });
+  const toggleActive = async (c: Client) => {
+    await api.patch(`/clients/${c.id}`, { isActive: !c.isActive });
     load();
   };
 
-  const remove = async (id: string) => { if (!confirm('Delete this customer? This cannot be undone.')) return; await api.delete(`/clients/${id}`); load(); };
+  const remove = async (id: string) => {
+    if (!confirm('Delete this customer? This cannot be undone.')) return;
+    await api.delete(`/clients/${id}`); load();
+  };
 
-  const planColor = (p: string) => p === 'ENTERPRISE' ? 'bg-purple-500/20 text-purple-400' : p === 'STANDARD' ? 'bg-blue-500/20 text-blue-400' : 'bg-gray-500/20 text-gray-400';
+  const planColor = (p: string) =>
+    p === 'PREMIUM' ? 'bg-purple-500/20 text-purple-400' :
+    p === 'STANDARD' ? 'bg-blue-500/20 text-blue-400' :
+    'bg-gray-500/20 text-gray-400';
 
   return (
     <DashboardLayout navItems={adminNavItems} role="SUPER_ADMIN">
@@ -66,7 +76,7 @@ export default function CustomersPage() {
             <thead>
               <tr className="border-b border-gray-800 text-gray-400 text-xs uppercase tracking-wide">
                 <th className="p-4 text-left">Business</th>
-                <th className="p-4 text-left hidden md:table-cell">Contact</th>
+                <th className="p-4 text-left hidden md:table-cell">Phone</th>
                 <th className="p-4 text-left">Plan</th>
                 <th className="p-4 text-left hidden lg:table-cell">Cameras</th>
                 <th className="p-4 text-left">Status</th>
@@ -84,14 +94,14 @@ export default function CustomersPage() {
                   <td className="p-4"><span className={`px-2 py-1 rounded text-xs font-bold ${planColor(c.plan)}`}>{c.plan}</span></td>
                   <td className="p-4 text-gray-400 text-sm hidden lg:table-cell">{c._count?.cameras ?? 0}</td>
                   <td className="p-4">
-                    <span className={`px-2 py-1 rounded text-xs font-bold ${c.status === 'ACTIVE' ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                      {c.status || 'ACTIVE'}
+                    <span className={`px-2 py-1 rounded text-xs font-bold ${c.isActive ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                      {c.isActive ? 'ACTIVE' : 'SUSPENDED'}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex gap-2 flex-wrap">
                       <button onClick={() => openEdit(c)} className="text-cyan-400 text-xs hover:underline">Edit</button>
-                      <button onClick={() => suspend(c)} className="text-yellow-400 text-xs hover:underline">{c.status === 'SUSPENDED' ? 'Activate' : 'Suspend'}</button>
+                      <button onClick={() => toggleActive(c)} className="text-yellow-400 text-xs hover:underline">{c.isActive ? 'Suspend' : 'Activate'}</button>
                       <button onClick={() => remove(c.id)} className="text-red-400 text-xs hover:underline">Delete</button>
                     </div>
                   </td>
@@ -108,7 +118,6 @@ export default function CustomersPage() {
             <div className="p-6">
               <h2 className="text-xl font-bold mb-6">{editing ? 'Edit Customer' : 'Add New Customer'}</h2>
               {error && <p className="text-red-400 text-sm mb-4 bg-red-500/10 border border-red-500/20 rounded p-3">{error}</p>}
-
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -116,11 +125,11 @@ export default function CustomersPage() {
                     <input className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="Acme Corp" />
                   </div>
                   <div>
-                    <label className="block text-gray-400 text-sm mb-1">Email Address *</label>
+                    <label className="block text-gray-400 text-sm mb-1">Email / Username *</label>
                     <input type="email" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="owner@business.com" />
+                    <p className="text-gray-600 text-xs mt-1">Used to log in</p>
                   </div>
                 </div>
-
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Phone Number</label>
@@ -129,31 +138,26 @@ export default function CustomersPage() {
                   <div>
                     <label className="block text-gray-400 text-sm mb-1">Subscription Plan</label>
                     <select className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })}>
-                      {PLANS.map(p => <option key={p} value={p}>{p} {p === 'BASIC' ? '(7 days)' : p === 'STANDARD' ? '(30 days)' : '(90 days)'}</option>)}
+                      <option value="BASIC">BASIC (7 days retention)</option>
+                      <option value="STANDARD">STANDARD (30 days retention)</option>
+                      <option value="PREMIUM">PREMIUM (90 days retention)</option>
                     </select>
                   </div>
                 </div>
-
                 <div>
                   <label className="block text-gray-400 text-sm mb-1">Business Address</label>
                   <textarea className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none resize-none" rows={2} value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="123 Main Street, City, State" />
                 </div>
-
-                {!editing && (
-                  <div>
-                    <label className="block text-gray-400 text-sm mb-1">Login Password * <span className="text-gray-600">(set by admin — customer cannot change)</span></label>
-                    <input type="password" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min 8 characters" />
-                  </div>
-                )}
-
+                <div>
+                  <label className="block text-gray-400 text-sm mb-1">Login Password * <span className="text-gray-600 text-xs">(set by admin)</span></label>
+                  <input type="password" className="w-full bg-gray-800 border border-gray-700 text-white px-3 py-2 rounded focus:border-cyan-400 focus:outline-none" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder={editing ? 'Leave blank to keep current password' : 'Min 8 characters'} />
+                </div>
                 <div className="bg-gray-800/50 rounded-lg p-3 text-xs text-gray-500">
-                  <p className="font-semibold text-gray-400 mb-1">Plan Features:</p>
-                  <p>• Basic: 7-day recording retention</p>
-                  <p>• Standard: 30-day recording retention</p>
-                  <p>• Enterprise: 90-day recording retention + priority support</p>
+                  <p className="font-semibold text-gray-400 mb-1">Login Credentials (share with customer):</p>
+                  <p>• Username: <span className="text-gray-300">{form.email || '—'}</span></p>
+                  <p>• Password: <span className="text-gray-300">{form.password ? '••••••••' : '—'}</span></p>
                 </div>
               </div>
-
               <div className="flex justify-end gap-3 mt-6">
                 <button onClick={() => setShowModal(false)} className="px-4 py-2 border border-gray-700 rounded text-sm text-gray-400 hover:text-white">Cancel</button>
                 <button onClick={save} disabled={saving} className="px-6 py-2 bg-cyan-400 text-gray-950 rounded text-sm font-semibold hover:bg-cyan-300 disabled:opacity-50">
