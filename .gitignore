@@ -1,0 +1,19 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Large files and model weights
+*.pt
+*.onnx
+*_openvino_model/
+
+# Videos and outputs (can contain people and number plates)
+videos/
+outputs/
+*.mp4
+*.avi
+
+# Local settings
+.vscode/
+.env
