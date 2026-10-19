@@ -17,3 +17,4 @@ outputs/
 # Local settings
 .vscode/
 .env
+test_images/
