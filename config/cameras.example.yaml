@@ -1,0 +1,13 @@
+﻿site: Site-A
+cameras:
+  - id: cam01
+    name: North Gate
+    rtsp_url: rtsp://USER:PASSWORD@192.168.1.10:554/stream2
+    active_hours: ["19:00", "06:00"]
+    classes: [person, bicycle, car, motorcycle, bus, truck, dog, cow, horse]
+    min_confidence: 0.35
+    min_dwell_seconds: 1.5
+    cooldown_seconds: 60
+    zones:
+      - name: Site boundary
+        polygon: [[120,200],[900,180],[950,650],[100,680]]
