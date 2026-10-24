@@ -1,13 +1,22 @@
 ﻿site: Site-A
+model: yolov8n.pt      # model file or Ultralytics model name
+detect_fps: 5          # detections per second, per camera
+imgsz: 640             # detection resolution; raise (e.g. 960) for distant targets, costs CPU
+
 cameras:
   - id: cam01
     name: North Gate
-    rtsp_url: rtsp://USER:PASSWORD@192.168.1.10:554/stream2
-    active_hours: ["19:00", "06:00"]
+    rtsp_url: "${CAM01_URL}"          # real URL goes in .env:  CAM01_URL=rtsp://user:pass@ip:554/stream2
+    # Keep the quotes around times. Same start and end = always active.
+    # Night shift example: ["19:00", "06:00"]
+    active_hours: ["00:00", "00:00"]
     classes: [person, bicycle, car, motorcycle, bus, truck, dog, cow, horse]
-    min_confidence: 0.35
+    min_confidence: 0.40
+    class_confidence: {dog: 0.70}     # optional per-class overrides
     min_dwell_seconds: 1.5
     cooldown_seconds: 60
+    # Zone points are fractions of the frame (0..1). Generate with tools/draw_zones.py
     zones:
       - name: Site boundary
-        polygon: [[120,200],[900,180],[950,650],[100,680]]
+        polygon: [[0.10, 0.50], [0.90, 0.50], [0.90, 0.95], [0.10, 0.95]]
+    ignore_zones: []
