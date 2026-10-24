@@ -10,7 +10,7 @@ One CameraStream = one camera = one background thread.
 import os
 
 # Must be set BEFORE cv2 is imported: use TCP for RTSP (more reliable than UDP).
-os.environ.setdefault("OPENCV_FFMPEG_CAPTURE_OPTIONS", "rtsp_transport;tcp")
+
 
 import threading
 import time
@@ -20,7 +20,7 @@ import cv2
 
 
 class CameraStream:
-    def __init__(self, cam_id, source, loop=False, max_backoff=30.0):
+    def __init__(self, cam_id, source, loop=False, max_backoff=10.0):
         self.cam_id = cam_id
         # "0", "1" ... -> webcam index; anything else -> URL or file path
         self.source = int(source) if str(source).isdigit() else str(source)
@@ -72,11 +72,27 @@ class CameraStream:
 
     # ---------- internals ----------
     def _open(self):
-        cap = cv2.VideoCapture(self.source)
-        try:
-            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        except Exception:
-            pass
+        is_rtsp = isinstance(self.source, str) and self.source.lower().startswith("rtsp")
+
+        if is_rtsp:
+            os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = "rtsp_transport;tcp"
+            cap = None
+            try:
+                cap = cv2.VideoCapture(
+                self.source, cv2.CAP_FFMPEG,
+                [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000,
+                 cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000],
+            )
+            except Exception:
+                cap = None
+            if cap is None or not cap.isOpened():
+                if cap is not None:
+                    cap.release()
+                cap = cv2.VideoCapture(self.source, cv2.CAP_FFMPEG)
+        else:
+            os.environ.pop("OPENCV_FFMPEG_CAPTURE_OPTIONS", None)
+            cap = cv2.VideoCapture(self.source)
+
         if not cap.isOpened():
             cap.release()
             return None
