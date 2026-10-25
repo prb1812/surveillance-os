@@ -28,7 +28,7 @@ class AlertManager:
     def __init__(self, notifier, max_queue=500, max_age=3600, backoff=None):
         self.notifier = notifier
         self.max_age = max_age
-        self.backoff = backoff or [5, 15, 30, 60, 120, 300]
+        self.backoff = backoff or [5, 15, 30, 60]
         self._q = queue.Queue(maxsize=max_queue)
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="alerts", daemon=True)
