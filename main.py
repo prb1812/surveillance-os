@@ -5,6 +5,7 @@ main.py  -  run the intrusion pipeline on every camera in config/cameras.yaml
   python main.py --show                # with preview windows (debugging only)
   python main.py --seconds 60          # auto-stop
   python main.py --no-alerts           # detect and save snapshots, send nothing
+  python main.py --health-test         # SHORT health timers, for trying failures by hand
 
 Telegram alerts are on automatically when TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are in .env
 """
@@ -22,10 +23,12 @@ from alerts.telegram import TelegramNotifier
 from core.clips import ClipRecorder
 from core.config import ConfigError, load_config
 from core.detector import Detector
+from core.health import HealthMonitor, HealthSettings
 from core.intrusion import IntrusionDetector
 from core.stream import CameraStream
 
 EVENT_DIR = Path("outputs") / "events"
+HEALTH_DIR = Path("outputs") / "health"
 CLIP_PRE_SECONDS = 8      # video kept from before the alert
 CLIP_POST_SECONDS = 8     # video recorded after the alert
 
@@ -87,6 +90,21 @@ def handle_event(ev, pipe, alerts):
     pipe.recorder.trigger(ev.timestamp, snap.with_suffix(".mp4"), clip_ready)
 
 
+def handle_health(h, alerts):
+    print(f"[HEALTH] {h.state.upper():<7} {h.camera_name} ({h.camera_id}): {h.kind}")
+    if not alerts:
+        return
+    if h.snapshot is not None:
+        d = datetime.fromtimestamp(h.timestamp)
+        folder = HEALTH_DIR / d.strftime("%Y-%m-%d") / h.camera_id
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / f"{d.strftime('%H%M%S')}_{h.kind}_{h.state}.jpg"
+        cv2.imwrite(str(path), h.snapshot)
+        alerts.send_photo(path, h.text)
+    else:
+        alerts.send_text(h.text)
+
+
 def draw_debug(frame, pipe, objects):
     for z in pipe.cam.zones:
         z.draw(frame, (0, 0, 255))
@@ -108,6 +126,7 @@ def main():
     ap.add_argument("--show", action="store_true", help="preview windows (debugging only)")
     ap.add_argument("--seconds", type=float, default=0, help="auto-stop after N seconds (0 = forever)")
     ap.add_argument("--no-alerts", action="store_true", help="do not send Telegram messages")
+    ap.add_argument("--health-test", action="store_true", help="short health timers for manual testing")
     args = ap.parse_args()
 
     try:
@@ -137,6 +156,10 @@ def main():
         pipes.append(CameraPipeline(cam, app))
     for p in pipes:
         p.stream.start()
+    monitor = HealthMonitor(app.site, [(p.cam.id, p.cam.name, p.stream) for p in pipes],
+                            HealthSettings.fast() if args.health_test else HealthSettings())
+    if args.health_test:
+        print("Health monitor: TEST timers (offline after 10 s, heartbeat every 60 s)")
     print("Running. Press Ctrl+C to stop.\n")
 
     t_start = last_report = time.time()
@@ -158,6 +181,17 @@ def main():
                 if args.show and frame is not None:
                     draw_debug(frame, p, objects)
                     cv2.imshow(p.cam.id, frame)
+
+            try:
+                for h in monitor.update(now):
+                    handle_health(h, alerts)
+                for msg in monitor.periodic(now, {p.cam.id: p.events for p in pipes}):
+                    print(f"[HEALTH] {msg.splitlines()[0]}")
+                    if alerts:
+                        alerts.send_text(msg)
+            except Exception:
+                print("[HEALTH] monitor error:")
+                traceback.print_exc()
 
             if args.show and (cv2.waitKey(1) & 0xFF == ord("q")):
                 break
